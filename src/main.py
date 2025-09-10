@@ -2,30 +2,124 @@ import os
 import pandas as pd
 from datetime import datetime
 
-def menu():
-    inp = input("Select: " \
-    "1. Add today's data" \
-    "2. Show averages")
-
-    if inp == '1':
-        get_user_input()
-    if inp == '2':
-        show_stats(df)
-
-def get_user_input():
-
-    date_str = str(input('Enter date (YYYY-MM-DD) or leave blank for today: '))
-    sleep_hours = float(input('How many hours did you sleep? '))
-    sleep_quality = float(input('Rate your sleep quality 1 to 10: '))
-    exercise_bool = str(input('Did you exercise yesterday? (y/n) ')).lower()
-    calories = int(input('How many calories did you consume yesterday? '))
-    productivity = float(input('Rate your productivity yesterday 1 to 10: '))
-    stress = float(input('Rate your stress levels yesterday 1 to 10: '))
-
-    return date_str, [sleep_hours, sleep_quality, exercise_bool, calories, productivity, stress]
-
 def main():
+    df, csv_data = read_data()
+    return df, csv_data
 
+def menu(df, csv_data):
+
+    while True:
+        inp = input("Select: \n"
+        "1. Add today's data \n"
+        "2. Show recent data \n"
+        "3. Show averages\n"
+        "4. Quit\n\n"
+        "Number: ")
+
+        if inp == '1':
+            add_data(df, csv_data)
+        if inp == '2':
+            show_recent(df, csv_data)
+        if inp == '3':
+            show_averages(df)
+        if inp == '4':
+            exit()
+        else:
+            print('\nPlease select an option.\n')
+
+
+def get_user_input(df):
+
+    # loop for date
+    while True:
+        date_str = str(input('Enter date (YYYY-MM-DD) or leave blank for today: '))
+
+        if date_str == '':
+            date_obj = datetime.now().date() # default to today
+        else:
+            for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d", "%B %d", "%b %d"):
+                try:
+                    date_obj = datetime.strptime(date_str, fmt)
+
+                    if fmt in ("%m/%d", "%B %d", "%b %d"):
+                        date_obj = date_obj.replace(year=datetime.now().year)
+                    break
+
+                except ValueError:
+                    continue
+            else:
+                print('Please enter a valid date.')
+                continue
+
+        date_obj = pd.to_datetime(date_obj)
+
+        # check if date already exists
+        if date_obj in df['date'].values:
+            choice = input('Date already exists- overwrite? (y/n) ').lower()
+            if choice not in ('y', 'yes'):
+                print('Will not add data for this date.')
+                return None
+        
+        break
+    
+        
+    # loop for sleep hours
+    while True:
+        try:
+            sleep_hours = float(input('How many hours did you sleep? '))
+            if sleep_hours < 0 or sleep_hours > 24:
+                print('Please enter a valid number.')
+                continue
+            break
+        except ValueError:
+            print('Please enter a valid number.')
+
+    sleep_quality = rating_helper('Rate your sleep quality 1 to 10: ')
+    
+    # loop for exercise boolean
+    while True:
+        try:
+            exercise_bool = str(input('Did you exercise yesterday? (y/n) ')).lower()
+            if exercise_bool not in ('y', 'n', 'yes', 'no'):
+                print('Please enter (y/n).')
+                continue
+            break
+        except ValueError:
+            print('Please enter a valid number.')
+    
+    
+    calories = number_helper('How many calories did you consume yesterday? ')
+    productivity = rating_helper('Rate your productivity yesterday 1 to 10: ')
+    stress = rating_helper('Rate your stress levels yesterday 1 to 10: ')
+
+    return [date_obj, sleep_hours, sleep_quality, exercise_bool, calories, productivity, stress]
+
+
+# Rating helper to check if value is within 0-10
+def rating_helper(prompt):
+    while True:
+        try:
+            inp = float(input(prompt))
+            if inp < 0 or inp > 10:
+                print('Please enter a number from 0 to 10.')
+                continue
+            return inp
+        except ValueError:
+            print('Please enter a number from 0 to 10.')
+
+# Number helper to check if value is a float
+def number_helper(prompt):
+    while True:
+        try:
+            inp = float(input(prompt))
+            if inp < 0:
+                print('Please enter a valid number.')
+            return inp
+        except ValueError:
+            print('Please enter a valid number.')
+    
+
+def read_data():
     csv_data = 'data/data.csv' 
 
     # will add more in the future, automate others like weather
@@ -39,32 +133,55 @@ def main():
     else:
         df = pd.read_csv(csv_data)
 
-    # convert to datetime, set date index
+    # convert to datetime
     if not df.empty:
         df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
+
+    return df, csv_data
 
 
-    # today's date
-    date_str, values = get_user_input()
-    if date_str ==  '':
-        date_str = pd.Timestamp(datetime.now().date())
-    else:
-        date_str = pd.to_datetime(date_str)
+def add_data(df, csv_data):
 
     # add row for today
-    df.loc[date_str] = values
+    values = get_user_input(df)
+    if values is None:
+        return df
+    date_obj = values[0]
+
+    # if overwritten replace old data
+    if date_obj in df['date'].values:
+        index = df.index[df['date'] == date_obj][0]
+        df.loc[index, ['sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']] = values[1:]
+
+    # make and add new row otherwise
+    new_row = [date_obj] + values[1:]
+    df.loc[len(df)] = new_row
+
+    # sort by date
+    df.sort_values('date', inplace=True)
 
     # update csv
-    df.to_csv(csv_data)
+    df.to_csv(csv_data, index=False)
     return df
 
-def show_stats(df):
-    print(f"Average sleep hours: {df['sleep_hours'].mean()}")
-    print(f"Average stress level: {df[['stress']].mean()}")
-    print(f"Average calories: {df[['calories']].mean()}")
 
+# Shows last 7 days of data
+def show_recent(df, csv_data):
+
+    return 
+# TO DO NEXT!!
+
+
+
+def show_averages(df):
+    print(f"Average sleep hours: {df['sleep_hours'].mean():.2f}")
+    print(f"Average sleep quality: {df['sleep_quality'].mean():.2f}")
+    print(f"Average stress level: {df['stress'].mean():.2f}")
+    print(f"Average calories: {df['calories'].mean():.0f}")
+    print(f"Average productivity level: {df['productivity'].mean():.2f}")
+    
 
 if __name__ == '__main__':
-    df = main()
-    show_stats(df)
+    df, csv_data = main()
+    menu(df, csv_data)
+    
