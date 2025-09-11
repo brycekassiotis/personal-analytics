@@ -1,28 +1,36 @@
 import os
 import pandas as pd
 from datetime import datetime
+import plots
 
 def main():
     df, csv_data = read_data()
     return df, csv_data
+
+# will add more in the future, automate others
+columns = ['date', 'sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']
+numeric_columns = [column for column in columns if column not in ('date', 'exercise')]
 
 def menu(df, csv_data):
 
     while True:
         inp = input("Select: \n"
         "1. Add today's data \n"
-        "2. Show recent data \n"
+        "2. Show past week's data \n"
         "3. Show averages\n"
-        "4. Quit\n\n"
+        "4. Plot menu\n"
+        "5. Quit\n\n"
         "Number: ")
 
         if inp == '1':
             add_data(df, csv_data)
-        if inp == '2':
-            show_recent(df, csv_data)
-        if inp == '3':
+        elif inp == '2':
+            show_week(df, csv_data)
+        elif inp == '3':
             show_averages(df)
-        if inp == '4':
+        elif inp == '4':
+            plots.plot_menu(df)
+        elif inp == '5':
             exit()
         else:
             print('\nPlease select an option.\n')
@@ -78,14 +86,15 @@ def get_user_input(df):
     
     # loop for exercise boolean
     while True:
-        try:
-            exercise_bool = str(input('Did you exercise yesterday? (y/n) ')).lower()
-            if exercise_bool not in ('y', 'n', 'yes', 'no'):
-                print('Please enter (y/n).')
-                continue
+        exercise_inp = str(input('Did you exercise yesterday? (y/n) ')).lower()
+        if exercise_inp in ('y', 'yes'):
+            exercise_bool = exercise_inp
             break
-        except ValueError:
-            print('Please enter a valid number.')
+        elif exercise_inp in ('n', 'no'):
+            exercise_bool = False
+            break
+        else:
+            print('Please enter (y/n).')
     
     
     calories = number_helper('How many calories did you consume yesterday? ')
@@ -121,9 +130,6 @@ def number_helper(prompt):
 
 def read_data():
     csv_data = 'data/data.csv' 
-
-    # will add more in the future, automate others like weather
-    columns = ['date', 'sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']
 
     # load / create csv
     if not os.path.exists(csv_data) or os.path.getsize(csv_data) == 0:
@@ -166,13 +172,13 @@ def add_data(df, csv_data):
 
 
 # Shows last 7 days of data
-def show_recent(df, csv_data):
+def show_week(df, csv_data):
 
-    return 
-# TO DO NEXT!!
+    df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))]
+    print(f'Last weeks averages: \n {df_last_week[numeric_columns].mean().items()}')
+    print(df_last_week)
 
-
-
+# Show averages for entire dataset
 def show_averages(df):
     print(f"Average sleep hours: {df['sleep_hours'].mean():.2f}")
     print(f"Average sleep quality: {df['sleep_quality'].mean():.2f}")
@@ -180,6 +186,7 @@ def show_averages(df):
     print(f"Average calories: {df['calories'].mean():.0f}")
     print(f"Average productivity level: {df['productivity'].mean():.2f}")
     
+
 
 if __name__ == '__main__':
     df, csv_data = main()
