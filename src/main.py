@@ -2,6 +2,8 @@ import os
 import pandas as pd
 from datetime import datetime
 import plots
+import analysis
+import variables
 
 def main():
     df, csv_data = read_data()
@@ -9,7 +11,7 @@ def main():
 
 # will add more in the future, automate others
 columns = ['date', 'sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']
-numeric_columns = [column for column in columns if column not in ('date', 'exercise')]
+numeric_columns = list(variables.get_numeric_keys().values())
 
 def menu(df, csv_data):
 
@@ -19,7 +21,8 @@ def menu(df, csv_data):
         "2. Show past week's data \n"
         "3. Show averages\n"
         "4. Plot menu\n"
-        "5. Quit\n\n"
+        "5. Analysis menu\n"
+        "6. Quit\n\n"
         "Number: ")
 
         if inp == '1':
@@ -31,7 +34,10 @@ def menu(df, csv_data):
         elif inp == '4':
             plots.plot_menu(df)
         elif inp == '5':
-            exit()
+            analysis.analysis_menu(df)
+        elif inp == '6':
+            print('Exiting menu...')
+            break
         else:
             print('\nPlease select an option.\n')
 
@@ -88,7 +94,7 @@ def get_user_input(df):
     while True:
         exercise_inp = str(input('Did you exercise yesterday? (y/n) ')).lower()
         if exercise_inp in ('y', 'yes'):
-            exercise_bool = exercise_inp
+            exercise_bool = True
             break
         elif exercise_inp in ('n', 'no'):
             exercise_bool = False
@@ -160,8 +166,9 @@ def add_data(df, csv_data):
         df.loc[index, ['sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']] = values[1:]
 
     # make and add new row otherwise
-    new_row = [date_obj] + values[1:]
-    df.loc[len(df)] = new_row
+    else:
+        new_row = [date_obj] + values[1:]
+        df.loc[len(df)] = new_row
 
     # sort by date
     df.sort_values('date', inplace=True)
