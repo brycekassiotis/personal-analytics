@@ -7,7 +7,8 @@ def plot_menu(df):
         inp = input('\nSelect: \n'
         '1. Plot variable over time \n'
         '2. Scatterplot between variables \n'
-        '3. Quit \n'
+        '3. Plot correlation between variables'
+        '4. Quit \n'
         '\nNumber: ')
 
         if inp == '1':
@@ -15,6 +16,8 @@ def plot_menu(df):
         elif inp == '2':
             scatter_plot(df)
         elif inp == '3':
+            corr_plot(df)
+        elif inp == '4':
             print('Exiting menu...')
             break
         else:
@@ -23,8 +26,7 @@ def plot_menu(df):
 
 # Plot inputted variable against date
 def plot_variable_over_time(df):
-
-    
+    numeric_vars = variables.get_numeric_variables()
 
     inp = input('What variable number would you like to plot?\n'
         '1. Sleep hours over time. \n'
@@ -37,11 +39,18 @@ def plot_variable_over_time(df):
         '\nNumber: ')
     if inp == '6':
         return
-    if inp not in variables.get_numeric_variables():
+    
+    try:
+        ind = int(inp)
+    except ValueError:
         print('Please enter a valid option.')
         return
     
-    col = variables.get_numeric_variables()[inp]
+    if ind not in numeric_vars:
+        print('Please enter a valid option.')
+        return
+    
+    col = numeric_vars[ind]
 
     title = f'{col.replace("_", " ").title()} Over Time'
     plt.plot(df['date'], df[col])
@@ -55,6 +64,8 @@ def plot_variable_over_time(df):
 
 # scatter plot to compare relationships between variables
 def scatter_plot(df):
+    numeric_vars = variables.get_numeric_variables()
+
     inp = input('What should be the X variable?\n'
         '1. Sleep hours \n'
         '2. Sleep quality \n'
@@ -67,11 +78,17 @@ def scatter_plot(df):
     if inp == '6':
         return
     
-    if inp not in variables.get_numeric_variables():
+    try:
+        ind = int(inp)
+    except ValueError:
         print('Please enter a valid option.')
         return
     
-    x_data = variables.get_numeric_variables()[inp]
+    if ind not in numeric_vars:
+        print('Please enter a valid option.')
+        return
+    
+    x_data = numeric_vars[int(ind)]
 
 
     inp = input('What should be the Y variable?\n'
@@ -86,11 +103,11 @@ def scatter_plot(df):
     if inp == '6':
         return
     
-    if inp not in variables.get_numeric_variables():
+    if int(inp) not in numeric_vars:
         print('Please enter a valid option.')
         return
     
-    y_data = variables.get_numeric_variables()[inp]
+    y_data = numeric_vars[int(inp)]
 
     # avoid plotting variable against itself
     if x_data == y_data:
@@ -120,3 +137,71 @@ def save_plot_helper(title):
         print(f'Plot saved as {filename}')
     else:
         print('Not saving plot...')
+
+
+def corr_plot(df):
+
+    numeric_vars = variables.get_numeric_variables()
+
+    inp = input('What should be the X variable?\n'
+        '1. Sleep hours \n'
+        '2. Sleep quality \n'
+        '3. Calories \n'
+        '4. Productivity level \n'
+        '5. Stress level \n'
+        '6. Quit. \n'
+
+        '\nNumber: ')
+    if inp == '6':
+        return
+    
+    try:
+        ind = int(inp)
+    except ValueError:
+        print('Please enter a valid option.')
+        return
+    
+    if ind not in numeric_vars:
+        print('Please enter a valid option.')
+        return
+    
+    x_data = numeric_vars[int(ind)]
+
+
+    inp = input('What should be the Y variable?\n'
+        '1. Sleep hours \n'
+        '2. Sleep quality \n'
+        '3. Calories \n'
+        '4. Productivity level \n'
+        '5. Stress level \n'
+        '6. Quit. \n'
+
+        '\nNumber: ')
+    if inp == '6':
+        return
+    
+    if int(inp) not in numeric_vars:
+        print('Please enter a valid option.')
+        return
+    
+    y_data = numeric_vars[int(inp)]
+
+    # avoid plotting variable against itself
+    if x_data == y_data:
+        print('X and Y must be different variables.')
+        return
+
+    # make correlation plot
+    title = f'{x_data.replace("_", " ").title()} vs {y_data.replace("_", " ").title()}'
+    
+    plt.title(title)
+
+    corr_val = df[x_data].corr(df[y_data])
+    plt.matshow([[corr_val]], cmap='coolwarm', vmin = -1, vmax = 1)
+    plt.colorbar(label='Correlation')
+
+    plt.xticks([0], [x_data.replace('_', ' ').title()])
+    plt.yticks([0], [y_data.replace('_', ' ').title()])
+
+    save_plot_helper(title)
+    plt.show()

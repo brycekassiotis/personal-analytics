@@ -7,7 +7,7 @@ def analysis_menu(df):
             "1. Summarize data \n" 
             "2. Get average of data\n"
             "3. Get median of data\n"
-            "4. Get standard deviation of data"
+            "4. Get standard deviation of data\n"
             "5. Quit\n\n"
             "Number: ")
 
@@ -32,7 +32,8 @@ def get_average(df):
     if col_key is None:
         return
 
-    return df[col_key].mean()
+    return f"The mean of {col_key.replace('_', ' ').title()} is {df[col_key].mean():.2f}"
+
 
 
 def get_median(df):
@@ -41,7 +42,7 @@ def get_median(df):
     if col_key is None:
         return
 
-    return df[col_key].median()
+    return f"The median of {col_key.replace('_', ' ').title()} is {df[col_key].median():.2f}"
 
 
 def get_std(df):
@@ -49,7 +50,7 @@ def get_std(df):
     if col_key is None:
         return
 
-    return df[col_key].std()
+    return f"The standard deviation of {col_key.replace('_', ' ').title()} is {df[col_key].std():.2f}"
 
 # takes input for which variable and returns the corresponding column key
 def numeric_input_helper(stat):

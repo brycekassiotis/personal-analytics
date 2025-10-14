@@ -16,7 +16,7 @@ def get_numeric_variables():
     for key, val in variables.items():
         if val['type'] == 'numeric':
             i+=1
-            numeric_variables[i] = val['label']
+            numeric_variables[i] = key
 
     return numeric_variables
 
