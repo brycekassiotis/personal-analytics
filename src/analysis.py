@@ -1,6 +1,10 @@
 import variables
+import main
 
 def analysis_menu(df):
+
+    df = main.refresh_data('data/data.csv')
+
     # loop until the user quits
     while True:
         inp = input("Select: \n"
@@ -24,6 +28,8 @@ def analysis_menu(df):
             break
         else:
             print('\nPlease select an option.\n')
+
+    return df
 
 
 def get_average(df):
@@ -55,26 +61,29 @@ def get_std(df):
 # takes input for which variable and returns the corresponding column key
 def numeric_input_helper(stat):
 
-    inp = input(f'What variable number would you like to find the {stat} of?\n'
-        '1. Sleep hours \n'
-        '2. Sleep quality \n'
-        '3. Calories \n'
-        '4. Productivity level \n'
-        '5. Stress level \n'
-        '6. Quit. \n'
+    numeric_vars = variables.get_numeric_keys()
 
-        '\nNumber: ')
-    if inp == '6':
-        print('Quitting...')
-        return None
+    print(f'What variable number would you like to find the {stat} of?\n')
+
+    for i, key in numeric_vars.items():
+        print(f"{i}. {variables.variables[key]['label']}")
+
+    print(f"{len(numeric_vars) + 1}. Quit")
+
+    inp = input('Number: ')
+    
     try:
         ind = int(inp)
-        numeric_keys = variables.get_numeric_keys()
-        if ind not in numeric_keys:
-            print('Please enter a valid option.')
-            return
+        if ind == len(numeric_vars) + 1:
+            print('Quitting...')
+            return None
         
-        return numeric_keys[ind]
+        if ind not in numeric_vars:
+            print('Please enter a valid option.')
+            return None
+        
+        return numeric_vars[ind]
+    
     except (ValueError, TypeError):
         print('Please enter a valid option')
-        return
+        return None

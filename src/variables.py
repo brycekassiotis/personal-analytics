@@ -1,10 +1,19 @@
 variables = {
     "sleep_hours": {"label": "Sleep Hours", "type": "numeric"},
     "sleep_quality": {"label": "Sleep Quality", "type": "numeric"},
+    "steps": {"label": "Steps", "type": "numeric"},
+    "exercise": {"label": "Exercise", "type": "boolean"},
     "calories": {"label": "Calories", "type": "numeric"},
     "productivity": {"label": "Productivity", "type": "numeric"},
     "stress": {"label": "Stress", "type": "numeric"},
-    "exercise": {"label": "Exercise", "type": "boolean"},
+    "day_rating": {"label": "Day Rating", "type": "numeric"},
+    "mood": {"label": "Mood", "type": "numeric"},
+    "screen_time": {"label": "Screen Time", "type": "numeric"},
+    "avg_temp": {"label": "Average Temperature", "type": "numeric"},
+    "weather": {"label": "Weather", "type": "text"},
+    "day_of_week": {"label": "Day of Week", "type": "text"},
+    "social": {"label": "Socialness", "type": "numeric"},
+    "notes": {"label": "Notes", "type": "text"}
 }
 
 # used for menus

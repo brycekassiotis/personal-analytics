@@ -1,5 +1,1 @@
-date,sleep_hours,sleep_quality,exercise,calories,productivity,stress
-2025-09-04,4.0,10.0,y,3000.0,6.0,2.0
-2025-09-07,4.0,4.0,h,3000.0,3.0,1.0
-2025-09-09,23.0,9.1,y,5000.0,2.0,2.0
-2025-09-09,23.0,9.1,y,5000.0,2.0,2.0
+date,sleep_hours,sleep_quality,steps,exercise,calories,productivity,stress,day_rating,mood,screen_time,avg_temp,weather,day_of_week,social,notes

@@ -1,16 +1,21 @@
 import os
 import pandas as pd
 from datetime import datetime
+import gspread
 import plots
 import analysis
 import variables
+from google.oauth2.service_account import Credentials
+
+
 
 def main():
     df, csv_data = read_data()
+    df = sync_sheet(csv_data, sheet_name='Daily Analytics')
     return df, csv_data
 
-# will add more in the future, automate others
-columns = ['date', 'sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']
+columns = list(variables.variables.keys())
+
 numeric_columns = list(variables.get_numeric_keys().values())
 
 def menu(df, csv_data):
@@ -19,10 +24,9 @@ def menu(df, csv_data):
         inp = input("Select: \n"
         "1. Add today's data \n"
         "2. Show past week's data \n"
-        "3. Show averages\n"
-        "4. Plot menu\n"
-        "5. Analysis menu\n"
-        "6. Quit\n\n"
+        "3. Plot menu\n"
+        "4. Analysis menu\n"
+        "5. Quit\n\n"
         "Number: ")
 
         if inp == '1':
@@ -30,12 +34,10 @@ def menu(df, csv_data):
         elif inp == '2':
             show_week(df, csv_data)
         elif inp == '3':
-            show_averages(df)
-        elif inp == '4':
             plots.plot_menu(df)
+        elif inp == '4':
+            df = analysis.analysis_menu(df)
         elif inp == '5':
-            analysis.analysis_menu(df)
-        elif inp == '6':
             print('Exiting menu...')
             break
         else:
@@ -44,39 +46,9 @@ def menu(df, csv_data):
 
 def get_user_input(df):
 
-    # loop for date
-    while True:
-        date_str = str(input('Enter date (YYYY-MM-DD) or leave blank for today: '))
-
-        if date_str == '':
-            date_obj = datetime.now().date() # default to today
-        else:
-            for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d", "%B %d", "%b %d"):
-                try:
-                    date_obj = datetime.strptime(date_str, fmt)
-
-                    if fmt in ("%m/%d", "%B %d", "%b %d"):
-                        date_obj = date_obj.replace(year=datetime.now().year)
-                    break
-
-                except ValueError:
-                    continue
-            else:
-                print('Please enter a valid date.')
-                continue
-
-        date_obj = pd.to_datetime(date_obj)
-
-        # check if date already exists
-        if date_obj in df['date'].values:
-            choice = input('Date already exists- overwrite? (y/n) ').lower()
-            if choice not in ('y', 'yes'):
-                print('Will not add data for this date.')
-                return None
-        
-        break
+    date_obj = datetime.now().date()
     
-        
+            
     # loop for sleep hours
     while True:
         try:
@@ -102,12 +74,20 @@ def get_user_input(df):
         else:
             print('Please enter (y/n).')
     
-    
-    calories = number_helper('How many calories did you consume yesterday? ')
-    productivity = rating_helper('Rate your productivity yesterday 1 to 10: ')
-    stress = rating_helper('Rate your stress levels yesterday 1 to 10: ')
+    steps = input('How many steps did you take today? ')
+    calories = number_helper('How many calories did you consume today? ')
+    productivity = rating_helper('Rate your productivity today 1 to 10: ')
+    stress = rating_helper('Rate your stress levels today 1 to 10: ')
+    day_rating = rating_helper('Rate your day today 1 to 10: ')
+    mood = rating_helper('Rate your mood today 1 to 10: ')
+    screen_time = rating_helper('How many hours of screen time did you have today? ')
+    avg_temp = None
+    weather = None
+    day_of_week = date_obj.strftime("%A")
+    social = rating_helper("How social were you today from 1 to 10: ")
+    notes = input('Notes: ')
 
-    return [date_obj, sleep_hours, sleep_quality, exercise_bool, calories, productivity, stress]
+    return [date_obj, sleep_hours, sleep_quality, steps, exercise_bool, calories, productivity, stress, day_rating, mood, screen_time, avg_temp, weather, day_of_week, social, notes]
 
 
 # Rating helper to check if value is within 0-10
@@ -132,24 +112,80 @@ def number_helper(prompt):
             return inp
         except ValueError:
             print('Please enter a valid number.')
-    
+
 
 def read_data():
-    csv_data = 'data/data.csv' 
-
-    # load / create csv
-    if not os.path.exists(csv_data) or os.path.getsize(csv_data) == 0:
+    csv_data = 'data/data.csv'
+    if not os.path.exists(csv_data):
         os.makedirs('data', exist_ok=True)
-        df = pd.DataFrame(columns=columns)
+        df = pd.DataFrame(columns=list(variables.variables.keys()))
         df.to_csv(csv_data, index=False)
     else:
         df = pd.read_csv(csv_data)
-
-    # convert to datetime
-    if not df.empty:
+        for col in list(variables.variables.keys()):
+            if col not in df.columns:
+                df[col] = None
         df['date'] = pd.to_datetime(df['date'])
-
     return df, csv_data
+
+
+def read_google_sheet(sheet_name, creds_file='credentials.json'):
+    scope = ["https://www.googleapis.com/auth/spreadsheets",
+             "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_file(creds_file, scopes=scope)
+    client = gspread.authorize(creds)
+    
+    sheet = client.open(sheet_name).sheet1
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+# helper that allows me to add data from both the automation and manually
+def sync_sheet(csv_data, sheet_name='Daily Analytics', creds_file='credentials.json'):
+    try:
+        sheet_df = read_google_sheet(sheet_name, creds_file)
+
+        # read the csv if it exists
+        if os.path.exists(csv_data):
+            local_df = pd.read_csv(csv_data)
+            local_df['date'] = pd.to_datetime(local_df['date'])
+        else:
+            local_df = pd.DataFrame(columns=list(variables.variables.keys()))
+        
+        # merge by date to only keep new rows from the sheet
+        combined_df = pd.concat([local_df, sheet_df]).drop_duplicates(subset=['date'], keep='last')
+
+        combined_df.sort_values('date', inplace=True)
+        combined_df.to_csv(csv_data, index=False)
+
+        new_rows = len(combined_df) - len(local_df)
+        if new_rows > 0:
+            print(f"Synced {new_rows} new rows from Google Sheet.")
+        else:
+            print('No new data to sync.')
+
+        return combined_df
+    
+    except Exception as e:
+        print(f"Could not sync from Google Sheet: {e}")
+        return pd.read_csv(csv_data) if os.path.exists(csv_data) else pd.DataFrame(columns=list(variables.variables.keys()))
+
+# Pushes the changes made to google sheet
+def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json'):
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets",
+                 "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_file(creds_file, scopes=scope)
+        client = gspread.authorize(creds)
+
+        sheet = client.open(sheet_name).sheet1
+        sheet.clear()
+        sheet.update([df.columns.values.tolist()] + df.values.tolist())
+
+        print("Uploaded latest data to Google Sheet.")
+    except Exception as e:
+        print(f"Could not push data to Google Sheet: {e}")
 
 
 def add_data(df, csv_data):
@@ -163,7 +199,7 @@ def add_data(df, csv_data):
     # if overwritten replace old data
     if date_obj in df['date'].values:
         index = df.index[df['date'] == date_obj][0]
-        df.loc[index, ['sleep_hours', 'sleep_quality', 'exercise', 'calories', 'productivity', 'stress']] = values[1:]
+        df.loc[index, list(variables.variables.keys())[1:]] = values[1:]
 
     # make and add new row otherwise
     else:
@@ -175,6 +211,8 @@ def add_data(df, csv_data):
 
     # update csv
     df.to_csv(csv_data, index=False)
+    push_to_sheet(df)
+
     return df
 
 
@@ -184,15 +222,10 @@ def show_week(df, csv_data):
     df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))]
     print(f'Last weeks averages: \n {df_last_week[numeric_columns].mean().items()}')
     print(df_last_week)
-
-# Show averages for entire dataset
-def show_averages(df):
-    print(f"Average sleep hours: {df['sleep_hours'].mean():.2f}")
-    print(f"Average sleep quality: {df['sleep_quality'].mean():.2f}")
-    print(f"Average stress level: {df['stress'].mean():.2f}")
-    print(f"Average calories: {df['calories'].mean():.0f}")
-    print(f"Average productivity level: {df['productivity'].mean():.2f}")
     
+# Helper to refresh and add new data
+def refresh_data(csv_data):
+    return sync_sheet(csv_data, sheet_name='Daily Analytics')
 
 
 if __name__ == '__main__':
