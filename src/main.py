@@ -5,8 +5,13 @@ import gspread
 import plots
 import analysis
 import variables
+import supplements
 from google.oauth2.service_account import Credentials
 
+# setting directory
+# at the top of main.py
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CSV_PATH = os.path.join(BASE_DIR, 'data', 'data.csv')
 
 
 def main():
@@ -26,7 +31,8 @@ def menu(df, csv_data):
         "2. Show past week's data \n"
         "3. Plot menu\n"
         "4. Analysis menu\n"
-        "5. Quit\n\n"
+        "5. Supplements menu\n"
+        "6. Quit\n\n"
         "Number: ")
 
         if inp == '1':
@@ -38,6 +44,8 @@ def menu(df, csv_data):
         elif inp == '4':
             df = analysis.analysis_menu(df)
         elif inp == '5':
+            supplements.supplements_menu()
+        elif inp == '6':
             print('Exiting menu...')
             break
         else:
@@ -87,7 +95,43 @@ def get_user_input(df):
     social = rating_helper("How social were you today from 1 to 10: ")
     notes = input('Notes: ')
 
-    return [date_obj, sleep_hours, sleep_quality, steps, exercise_bool, calories, productivity, stress, day_rating, mood, screen_time, avg_temp, weather, day_of_week, social, notes]
+    # supplements
+    sups = supplements.load_supplements()
+    supplement_values = []
+
+    if sups:
+        print("\n--- Supplements ---")
+
+        for name, info in sups.items():
+            label = info['label']
+            sup_type = info['type']
+
+            if sup_type == 'boolean':
+                while True:
+                    val = input(f'{label} (y/n): ').lower().strip()
+                    if val in ('y', 'yes'):
+                        supplement_values.append(True)
+                        break
+                    elif val in ('n', 'no'):
+                        supplement_values.append(False)
+                        break
+                    else:
+                        print('Please enter (y/n).')
+            
+            elif sup_type == 'numeric':
+                while True:
+
+                    try:
+                        val = float(input(f'{label}: '))
+                        supplement_values.append(val)
+                        break
+                    except ValueError:
+                        print ('Please enter a valid number.')
+    else:
+        print('\nNo supplements.')
+
+    return [date_obj, sleep_hours, sleep_quality, steps, exercise_bool, calories, productivity, stress, 
+            day_rating, mood, screen_time, avg_temp, weather, day_of_week, social, notes, *supplement_values]
 
 
 # Rating helper to check if value is within 0-10
@@ -109,13 +153,14 @@ def number_helper(prompt):
             inp = float(input(prompt))
             if inp < 0:
                 print('Please enter a valid number.')
+                continue
             return inp
         except ValueError:
             print('Please enter a valid number.')
 
 
 def read_data():
-    csv_data = 'data/data.csv'
+    csv_data = CSV_PATH
     if not os.path.exists(csv_data):
         os.makedirs('data', exist_ok=True)
         df = pd.DataFrame(columns=list(variables.variables.keys()))
@@ -126,25 +171,28 @@ def read_data():
             if col not in df.columns:
                 df[col] = None
         df['date'] = pd.to_datetime(df['date'])
+
+    supplements.check_supplement_columns(csv_data)
+
     return df, csv_data
 
 
-def read_google_sheet(sheet_name, creds_file='credentials.json'):
+def read_google_sheet(sheet_name, creds_path="credentials.json"):
     scope = ["https://www.googleapis.com/auth/spreadsheets",
              "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file(creds_file, scopes=scope)
+    creds = Credentials.from_service_account_file(creds_path, scopes=scope)
     client = gspread.authorize(creds)
-    
     sheet = client.open(sheet_name).sheet1
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
     df['date'] = pd.to_datetime(df['date'])
     return df
 
+
 # helper that allows me to add data from both the automation and manually
-def sync_sheet(csv_data, sheet_name='Daily Analytics', creds_file='credentials.json'):
+def sync_sheet(csv_data, sheet_name='Daily Analytics'):
     try:
-        sheet_df = read_google_sheet(sheet_name, creds_file)
+        sheet_df = read_google_sheet(sheet_name, creds_path="credentials.json")
 
         # read the csv if it exists
         if os.path.exists(csv_data):
@@ -190,6 +238,9 @@ def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json
 
 def add_data(df, csv_data):
 
+    # check supplements
+    supplements.check_supplement_columns(csv_data)
+
     # add row for today
     values = get_user_input(df)
     if values is None:
@@ -199,7 +250,7 @@ def add_data(df, csv_data):
     # if overwritten replace old data
     if date_obj in df['date'].values:
         index = df.index[df['date'] == date_obj][0]
-        df.loc[index, list(variables.variables.keys())[1:]] = values[1:]
+        df.loc[index, df.columns[1:]] = values[1:]
 
     # make and add new row otherwise
     else:
@@ -225,7 +276,10 @@ def show_week(df, csv_data):
     
 # Helper to refresh and add new data
 def refresh_data(csv_data):
+    supplements.check_supplement_columns(csv_data)
     return sync_sheet(csv_data, sheet_name='Daily Analytics')
+
+
 
 
 if __name__ == '__main__':

@@ -34,27 +34,27 @@ def plot_menu(df):
 
 # Plot inputted variable against date
 def plot_variable_over_time(df):
-    numeric_vars = variables.get_numeric_variables()
+    numeric_vars = variables.get_numeric_keys()
 
-    inp = input('What variable number would you like to plot?\n'
-        '1. Sleep hours over time. \n'
-        '2. Sleep quality over time. \n'
-        '3. Calories over time. \n'
-        '4. Productivity level over time. \n'
-        '5. Stress level over time. \n'
-        '6. Quit. \n'
+    print(f'What variable would you like to plot over time?\n')
 
-        '\nNumber: ')
-    if inp == '6':
-        return
+    for i, key in numeric_vars.items():
+        print(f"{i}. {variables.variables[key]['label']}")
+
+    print(f"{len(numeric_vars) + 1}. Quit")
+
+    inp = input('Number: ')
     
     try:
         ind = int(inp)
+        if ind == len(numeric_vars) + 1:
+            print('Quitting...')
+            return None
+        
+        if ind not in numeric_vars:
+            print('Please enter a valid option.')
+            return None
     except ValueError:
-        print('Please enter a valid option.')
-        return
-    
-    if ind not in numeric_vars:
         print('Please enter a valid option.')
         return
     
