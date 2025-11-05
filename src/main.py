@@ -9,7 +9,6 @@ import supplements
 from google.oauth2.service_account import Credentials
 
 # setting directory
-# at the top of main.py
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSV_PATH = os.path.join(BASE_DIR, 'data', 'data.csv')
 
@@ -32,7 +31,8 @@ def menu(df, csv_data):
         "3. Plot menu\n"
         "4. Analysis menu\n"
         "5. Supplements menu\n"
-        "6. Quit\n\n"
+        "6. Variables menu\n"
+        "7. Quit\n\n"
         "Number: ")
 
         if inp == '1':
@@ -46,6 +46,8 @@ def menu(df, csv_data):
         elif inp == '5':
             supplements.supplements_menu()
         elif inp == '6':
+            variables.variables_menu()
+        elif inp == '7':
             print('Exiting menu...')
             break
         else:
@@ -56,7 +58,6 @@ def get_user_input(df):
 
     date_obj = datetime.now().date()
     
-            
     # loop for sleep hours
     while True:
         try:
@@ -269,10 +270,33 @@ def add_data(df, csv_data):
 
 # Shows last 7 days of data
 def show_week(df, csv_data):
+    from variables import get_numeric_keys  # ensure access
 
+    # Convert date column safely
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+    # Filter last 7 days
     df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))]
-    print(f'Last weeks averages: \n {df_last_week[numeric_columns].mean().items()}')
+
+    # Get numeric columns dynamically
+    numeric_columns = list(get_numeric_keys().values())
+
+    # Convert numeric columns to numbers (ignore errors)
+    df_last_week[numeric_columns] = df_last_week[numeric_columns].apply(
+        pd.to_numeric, errors='coerce'
+    )
+
+    # Print averages cleanly
+    print("Last week's averages:")
+    averages = df_last_week[numeric_columns].mean()
+
+    for col, val in averages.items():
+        print(f"{col}: {val:.2f}")
+
+    print("\nRaw last 7 days:")
     print(df_last_week)
+
+    
     
 # Helper to refresh and add new data
 def refresh_data(csv_data):
