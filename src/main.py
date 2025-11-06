@@ -1,12 +1,10 @@
 import os
 import pandas as pd
 from datetime import datetime
-import gspread
 import plots
 import analysis
 import variables
-import supplements
-from google.oauth2.service_account import Credentials
+import helpers
 
 # setting directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +13,7 @@ CSV_PATH = os.path.join(BASE_DIR, 'data', 'data.csv')
 
 def main():
     df, csv_data = read_data()
-    df = sync_sheet(csv_data, sheet_name='Daily Analytics')
+    df = helpers.sync_sheet(csv_data, sheet_name='Daily Analytics')
     return df, csv_data
 
 columns = list(variables.variables.keys())
@@ -30,9 +28,8 @@ def menu(df, csv_data):
         "2. Show past week's data \n"
         "3. Plot menu\n"
         "4. Analysis menu\n"
-        "5. Supplements menu\n"
-        "6. Variables menu\n"
-        "7. Quit\n\n"
+        "5. Variables menu\n"
+        "6. Quit\n\n"
         "Number: ")
 
         if inp == '1':
@@ -44,10 +41,8 @@ def menu(df, csv_data):
         elif inp == '4':
             df = analysis.analysis_menu(df)
         elif inp == '5':
-            supplements.supplements_menu()
-        elif inp == '6':
             variables.variables_menu()
-        elif inp == '7':
+        elif inp == '6':
             print('Exiting menu...')
             break
         else:
@@ -72,16 +67,7 @@ def get_user_input(df):
     sleep_quality = rating_helper('Rate your sleep quality 1 to 10: ')
     
     # loop for exercise boolean
-    while True:
-        exercise_inp = str(input('Did you exercise yesterday? (y/n) ')).lower()
-        if exercise_inp in ('y', 'yes'):
-            exercise_bool = True
-            break
-        elif exercise_inp in ('n', 'no'):
-            exercise_bool = False
-            break
-        else:
-            print('Please enter (y/n).')
+    exercise_bool = helpers.get_bool("Did you exercise today?")
     
     steps = input('How many steps did you take today? ')
     calories = number_helper('How many calories did you consume today? ')
@@ -90,49 +76,18 @@ def get_user_input(df):
     day_rating = rating_helper('Rate your day today 1 to 10: ')
     mood = rating_helper('Rate your mood today 1 to 10: ')
     screen_time = rating_helper('How many hours of screen time did you have today? ')
-    avg_temp = None
+    min_temp = None
+    max_temp = None
     weather = None
     day_of_week = date_obj.strftime("%A")
     social = rating_helper("How social were you today from 1 to 10: ")
     notes = input('Notes: ')
-
-    # supplements
-    sups = supplements.load_supplements()
-    supplement_values = []
-
-    if sups:
-        print("\n--- Supplements ---")
-
-        for name, info in sups.items():
-            label = info['label']
-            sup_type = info['type']
-
-            if sup_type == 'boolean':
-                while True:
-                    val = input(f'{label} (y/n): ').lower().strip()
-                    if val in ('y', 'yes'):
-                        supplement_values.append(True)
-                        break
-                    elif val in ('n', 'no'):
-                        supplement_values.append(False)
-                        break
-                    else:
-                        print('Please enter (y/n).')
-            
-            elif sup_type == 'numeric':
-                while True:
-
-                    try:
-                        val = float(input(f'{label}: '))
-                        supplement_values.append(val)
-                        break
-                    except ValueError:
-                        print ('Please enter a valid number.')
-    else:
-        print('\nNo supplements.')
+    creatine = helpers.get_bool("Did you take creatine today?")
+    vitamin_d = helpers.get_bool("Did you take vitamin D today?")
+    magnesium = helpers.get_bool("Did you take magnesium today?")
 
     return [date_obj, sleep_hours, sleep_quality, steps, exercise_bool, calories, productivity, stress, 
-            day_rating, mood, screen_time, avg_temp, weather, day_of_week, social, notes, *supplement_values]
+            day_rating, mood, screen_time, min_temp, max_temp, weather, day_of_week, social, notes, creatine, vitamin_d, magnesium]
 
 
 # Rating helper to check if value is within 0-10
@@ -162,91 +117,40 @@ def number_helper(prompt):
 
 def read_data():
     csv_data = CSV_PATH
+    data_dir = os.path.join(BASE_DIR, 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    variable_keys = [k for k in variables.variables.keys() if k != 'date']
+    initial_columns = ['date'] + variable_keys
+
     if not os.path.exists(csv_data):
         os.makedirs('data', exist_ok=True)
-        df = pd.DataFrame(columns=list(variables.variables.keys()))
+        df = pd.DataFrame(columns=initial_columns)
         df.to_csv(csv_data, index=False)
     else:
         df = pd.read_csv(csv_data)
-        for col in list(variables.variables.keys()):
+        for col in variable_keys:
             if col not in df.columns:
                 df[col] = None
         df['date'] = pd.to_datetime(df['date'])
 
-    supplements.check_supplement_columns(csv_data)
-
     return df, csv_data
 
 
-def read_google_sheet(sheet_name, creds_path="credentials.json"):
-    scope = ["https://www.googleapis.com/auth/spreadsheets",
-             "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file(creds_path, scopes=scope)
-    client = gspread.authorize(creds)
-    sheet = client.open(sheet_name).sheet1
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    df['date'] = pd.to_datetime(df['date'])
-    return df
+def add_data(df, csv_data, manual_values=None):
 
-
-# helper that allows me to add data from both the automation and manually
-def sync_sheet(csv_data, sheet_name='Daily Analytics'):
-    try:
-        sheet_df = read_google_sheet(sheet_name, creds_path="credentials.json")
-
-        # read the csv if it exists
-        if os.path.exists(csv_data):
-            local_df = pd.read_csv(csv_data)
-            local_df['date'] = pd.to_datetime(local_df['date'])
-        else:
-            local_df = pd.DataFrame(columns=list(variables.variables.keys()))
+    # if manual values provided from Streamlit, use those
+    if manual_values is not None:
+        values = manual_values
+        date_obj = pd.to_datetime(values[0])
+    else:
+        # CLI mode — get values interactively
+        values = get_user_input(df)
+        if values is None:
+            return df
+        date_obj = pd.to_datetime(values[0])
         
-        # merge by date to only keep new rows from the sheet
-        combined_df = pd.concat([local_df, sheet_df]).drop_duplicates(subset=['date'], keep='last')
-
-        combined_df.sort_values('date', inplace=True)
-        combined_df.to_csv(csv_data, index=False)
-
-        new_rows = len(combined_df) - len(local_df)
-        if new_rows > 0:
-            print(f"Synced {new_rows} new rows from Google Sheet.")
-        else:
-            print('No new data to sync.')
-
-        return combined_df
-    
-    except Exception as e:
-        print(f"Could not sync from Google Sheet: {e}")
-        return pd.read_csv(csv_data) if os.path.exists(csv_data) else pd.DataFrame(columns=list(variables.variables.keys()))
-
-# Pushes the changes made to google sheet
-def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json'):
-    try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets",
-                 "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_file(creds_file, scopes=scope)
-        client = gspread.authorize(creds)
-
-        sheet = client.open(sheet_name).sheet1
-        sheet.clear()
-        sheet.update([df.columns.values.tolist()] + df.values.tolist())
-
-        print("Uploaded latest data to Google Sheet.")
-    except Exception as e:
-        print(f"Could not push data to Google Sheet: {e}")
-
-
-def add_data(df, csv_data):
-
-    # check supplements
-    supplements.check_supplement_columns(csv_data)
-
-    # add row for today
-    values = get_user_input(df)
-    if values is None:
-        return df
-    date_obj = values[0]
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
     # if overwritten replace old data
     if date_obj in df['date'].values:
@@ -255,15 +159,15 @@ def add_data(df, csv_data):
 
     # make and add new row otherwise
     else:
-        new_row = [date_obj] + values[1:]
-        df.loc[len(df)] = new_row
+        new_row = pd.DataFrame([values], columns=df.columns)
+        df = pd.concat([df, new_row], ignore_index=True)
 
     # sort by date
     df.sort_values('date', inplace=True)
 
     # update csv
     df.to_csv(csv_data, index=False)
-    push_to_sheet(df)
+    helpers.push_to_sheet(df)
 
     return df
 
@@ -295,14 +199,6 @@ def show_week(df, csv_data):
 
     print("\nRaw last 7 days:")
     print(df_last_week)
-
-    
-    
-# Helper to refresh and add new data
-def refresh_data(csv_data):
-    supplements.check_supplement_columns(csv_data)
-    return sync_sheet(csv_data, sheet_name='Daily Analytics')
-
 
 
 

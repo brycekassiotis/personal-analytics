@@ -1,9 +1,21 @@
+import streamlit as st
 import variables
-import main
 
-def analysis_menu(df):
+def analysis_menu(df, streamlit=False):
+    numeric_df = df.select_dtypes(include=["number"])
 
-    df = main.refresh_data('data/data.csv')
+    if streamlit:
+        option = st.selectbox("Select analysis type:", ["Summary", "Average", "Median", "Standard Deviation"])
+
+        if option == "Summary":
+            st.write(numeric_df.describe())
+        elif option == "Average":
+            st.write(numeric_df.mean().round(2))
+        elif option == "Median":
+            st.write(numeric_df.median().round(2))
+        elif option == "Standard Deviation":
+            st.write(numeric_df.std().round(2))
+        return df
 
     # loop until the user quits
     while True:
@@ -16,20 +28,20 @@ def analysis_menu(df):
             "Number: ")
 
         if inp == '1':
-            print(df.describe())
+            print(numeric_df.describe())
         elif inp == '2':
-            print(get_average(df))
+            print(numeric_df.get_average())
         elif inp == '3':
-            print(get_median(df))
+            print(numeric_df.get_median())
         elif inp == '4':
-            print(get_std(df))
+            print(numeric_df.get_std())
         elif inp == '5':
             print('Exiting menu...')
             break
         else:
             print('\nPlease select an option.\n')
 
-    return df
+        return df
 
 
 def get_average(df):

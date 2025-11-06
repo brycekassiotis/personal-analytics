@@ -1,8 +1,3 @@
-import pandas as pd
-import gspread
-from main import push_to_sheet, sync_sheet
-from helpers import pick_var
-
 variables = {
     "sleep_hours": {"label": "Sleep Hours", "type": "numeric"},
     "sleep_quality": {"label": "Sleep Quality", "type": "numeric"},
@@ -50,6 +45,8 @@ def variables_menu(df):
 
 # to add new variable
 def add_variable(df, csv_data):
+    from helpers import push_to_sheet
+
     key = input("Enter the variable key: ").strip()
     if key in variables:
         print("This variable key already exists.")
@@ -75,6 +72,8 @@ def add_variable(df, csv_data):
 
 
 def edit_variable(df, csv_data):
+    from helpers import pick_var
+
     selected_key = pick_var("Select variable number to edit: ")
     if selected_key is None: return df
 
