@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import streamlit as st
+import variables
+import helpers
 
 def plot_menu(df, streamlit=False):
     if streamlit:
@@ -53,8 +55,18 @@ def plot_menu(df, streamlit=False):
 
 # Plot inputted variable against date
 def plot_variable_over_time(df, streamlit=False):
+    # ensure types are clean for plotting
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
     if streamlit:
-        col = st.selectbox("Select variable:", df.columns[1:])
+        # Only show numeric variables
+        numeric_labels = variables.get_numeric_labels()
+        selected_label = st.selectbox("Select variable:", list(numeric_labels.values()))
+        col = [k for k, v in numeric_labels.items() if v == selected_label][0]
+
 
         # Button to generate plot
         if st.button("Generate Plot"):
@@ -65,20 +77,18 @@ def plot_variable_over_time(df, streamlit=False):
             ax.set_title(f"{col.replace('_',' ').title()} Over Time")
             plt.xticks(rotation=45)
             st.pyplot(fig)
+        return
 
     else:
         from helpers import pick_var
-        col = pick_var('What variable should be plotted against time?')
-
+        col = pick_var('What variable should be plotted against time?', numeric_only=True)
         if not col:
             return
 
     title = f'{col.replace("_", " ").title()} Over Time'
     plt.plot(df['date'], df[col])
-
     plt.gca().xaxis.set_major_locator(plt.MaxNLocator(8))
     plt.gcf().autofmt_xdate()
-
     plt.xlabel('Date')
     plt.ylabel(col.replace('_', ' ').title())
     plt.title(title)
@@ -89,9 +99,19 @@ def plot_variable_over_time(df, streamlit=False):
 
 # scatter plot to compare relationships between variables
 def scatter_plot(df, streamlit=False):
+    # ensure types are clean for plotting
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
     if streamlit:
-        x_data = st.selectbox("Select X variable:", df.columns[1:])
-        y_data = st.selectbox("Select Y variable:", df.columns[1:])
+        labels = variables.get_numeric_labels()
+        x_label = st.selectbox("Select X variable:", list(labels.values()))
+        y_label = st.selectbox("Select Y variable:", list(labels.values()))
+        x_data = [k for k, v in labels.items() if v == x_label][0]
+        y_data = [k for k, v in labels.items() if v == y_label][0]
+
         
         if st.button("Generate Scatter Plot"):
             if x_data == y_data:
@@ -106,9 +126,9 @@ def scatter_plot(df, streamlit=False):
         return
     else:
         from helpers import pick_var
-        x_data = pick_var('What should be the X variable?')
+        x_data = pick_var('What should be the X variable?', numeric_only=True)
         if not x_data: return
-        y_data = pick_var('What should be the Y variable?')
+        y_data = pick_var('What should be the Y variable?', numeric_only=True)
         if not y_data: return
 
     # avoid plotting variable against itself
@@ -130,6 +150,12 @@ def scatter_plot(df, streamlit=False):
 
 # plot correlation between two variables
 def corr_plot(df, streamlit=False):
+    # ensure types are clean for plotting
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
     if streamlit:
         x_data = st.selectbox("Select X variable:", df.columns[1:], key="corr_x")
         y_data = st.selectbox("Select Y variable:", df.columns[1:], key="corr_y")
@@ -157,9 +183,9 @@ def corr_plot(df, streamlit=False):
         return
     else:
         from helpers import pick_var
-        x_data = pick_var('What should be the X variable?')
+        x_data = pick_var('What should be the X variable?', numeric_only=True)
         if not x_data: return
-        y_data = pick_var('What should be the Y variable?')
+        y_data = pick_var('What should be the Y variable?', numeric_only=True)
         if not y_data: return
 
     # avoid plotting variable against itself
@@ -206,18 +232,34 @@ def corr_plot(df, streamlit=False):
 
 # create visual correlation heatmap
 def corr_heatmap(df, streamlit=False):
-    fig, ax = plt.figure(figsize=(6,6))
-    sns.heatmap(df.corr(numeric_only=True), annot=True, cmap='coolwarm', center=0)
-    ax.set_title('Correlation Matrix')
-    
+    # ensure types are clean for plotting
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
+    # get rid of non-numeric columns
+    corr_df = df.select_dtypes(include=np.number).corr()
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(
+        corr_df,
+        annot=True,
+        fmt=".2f",
+        cmap="coolwarm",
+        center=0,
+        square=True,
+        annot_kws={"size": 8}
+    )
+
+    plt.xticks(rotation=45, ha="right")
+    plt.yticks(rotation=0)
+    ax.set_title("Correlation Matrix")
+
     if streamlit:
-        if st.button("Generate Heatmap"):
-            fig, ax = plt.subplots(figsize=(6,6))
-            sns.heatmap(df.corr(numeric_only=True), annot=True, cmap='coolwarm', center=0, ax=ax)
-            ax.set_title("Correlation Matrix")
-            st.pyplot(fig)
-        return
+        st.pyplot(fig)
     else:
+        plt.tight_layout()
         plt.show()
 
 

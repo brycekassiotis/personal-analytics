@@ -1,3 +1,7 @@
+# Credentials and API keys
+credentials.json
+src/ai-assistant-*.json
+
 # Ignore personal data
 data/
 

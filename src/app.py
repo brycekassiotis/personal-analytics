@@ -33,41 +33,85 @@ df, csv_data = read_data()
 # Tabs
 tab_collect, tab_stats, tab_settings = st.tabs(["Collect", "Stats", "Settings"])
 
-# --- Collect Tab: Add Data ---
+# Collect tab
 with tab_collect:
     st.header("Add Today's Data")
     
-    with st.form("collect_form"):
-        sleep_hours = st.number_input("Hours slept", min_value=0.0, max_value=24.0)
-        sleep_quality = st.slider("Sleep quality (1-10)", 1, 10)
-        exercise = st.checkbox("Did you exercise today?")
-        steps = st.number_input("Steps", min_value=0)
-        calories = st.number_input("Calories consumed", min_value=0)
-        productivity = st.slider("Productivity (1-10)", 1, 10)
-        stress = st.slider("Stress (1-10)", 1, 10)
-        day_rating = st.slider("Day rating (1-10)", 1, 10)
-        mood = st.slider("Mood (1-10)", 1, 10)
-        screen_time = st.number_input("Screen time (hours)", min_value=0.0)
-        social = st.slider("Socialness (1-10)", 1, 10)
-        notes = st.text_area("Notes")
-        creatine = st.checkbox("Took Creatine")
-        vitamin_d = st.checkbox("Took Vitamin D")
-        magnesium = st.checkbox("Took Magnesium")
-        
-        submitted = st.form_submit_button("Add Data")
-        
-        if submitted:
-            date_obj = pd.to_datetime(pd.Timestamp.today().date())
-            values = [
-                date_obj, sleep_hours, sleep_quality, steps, exercise, calories,
-                productivity, stress, day_rating, mood, screen_time,
-                None, None, None, date_obj.strftime("%A"), social,
-                notes, creatine, vitamin_d, magnesium
-            ]
-            df = add_data(df, csv_data, manual_values=values)
-            st.success("Data added!")
+    # --- Sliders first (0-10) ---
+    # make sliders fluid (allow two decimal places)
+    sleep_quality = st.slider("Sleep quality (0-10)", 0.0, 10.0, step=0.01)
+    productivity = st.slider("Productivity (0-10)", 0.0, 10.0, step=0.01)
+    stress = st.slider("Stress (0-10)", 0.0, 10.0, step=0.01)
+    day_rating = st.slider("Day rating (0-10)", 0.0, 10.0, step=0.01)
+    mood = st.slider("Mood (0-10)", 0.0, 10.0, step=0.01)
+    social = st.slider("Socialness (0-10)", 0.0, 10.0, step=0.01)
 
-# --- Stats tab ---
+    # --- Numeric inputs next (order: hours slept, screen time, steps, calories) ---
+    sleep_hours = st.number_input("Hours slept", min_value=0.0, max_value=24.0, step=1.0)
+    screen_time = st.number_input("Screen time (hours)", min_value=0.0, step=1.0)
+    steps = st.number_input("Steps", min_value=0, step=100)
+    calories = st.number_input("Calories consumed", min_value=0, step=100)
+
+    # --- Booleans ---
+    # Place booleans outside a form so they update immediately when toggled
+    exercise_bool = st.checkbox("Did you exercise today?")
+    exercise_text = ''
+    if exercise_bool:
+        exercise_text = st.text_input("Exercise type (e.g., legs, push, pull)")
+
+    creatine = st.checkbox("Took Creatine")
+    vitamin_d = st.checkbox("Took Vitamin D")
+    magnesium = st.checkbox("Took Magnesium")
+
+    # --- Notes at the bottom ---
+    notes = st.text_area("Notes")
+
+    # Submit button
+    submitted = st.button("Add Data")
+
+    if submitted:
+        # ensure exercise has a sensible fallback if checkbox was checked but no text provided
+        if exercise_bool and (exercise_text is None or str(exercise_text).strip() == ""):
+            exercise_val = 'other'
+        elif exercise_bool:
+            exercise_val = exercise_text
+        else:
+            exercise_val = 'rest'
+
+        date_obj = pd.to_datetime(pd.Timestamp.today().date())
+
+        # Build a mapping of column -> value and then order it to match df.columns
+        col_map = {
+            'date': date_obj,
+            'sleep_hours': sleep_hours,
+            'sleep_quality': sleep_quality,
+            'steps': steps,
+            'exercise': exercise_val,
+            'calories': calories,
+            'productivity': productivity,
+            'stress': stress,
+            'day_rating': day_rating,
+            'mood': mood,
+            'screen_time': screen_time,
+            # placeholder avg_temp / min/max temp and weather handled by None if not present
+            'avg_temp': None,
+            'weather': None,
+            'day_of_week': date_obj.strftime("%A"),
+            'social': social,
+            'notes': notes,
+            'creatine': creatine,
+            'vitamin_d': vitamin_d,
+            'magnesium': magnesium,
+            'min_temp': None,
+            'max_temp': None
+        }
+
+        ordered_values = [col_map.get(c, None) for c in df.columns]
+
+        df = add_data(df, csv_data, manual_values=ordered_values)
+        st.success("Data added!")
+
+# Stats tab
 with tab_stats:
     st.header("Stats")
 
@@ -81,15 +125,34 @@ with tab_stats:
         st.subheader("Analysis")
         analysis_menu(df, streamlit=True)
 
-# --- Settings Tab ---
+# Settings tab
 with tab_settings:
     st.header("Settings")
     
     st.write("Manage variables and preferences here.")
-    
+
+    # Offline / Demo Mode toggle
+    if 'offline_mode' not in st.session_state:
+        # default to offline if credentials.json is missing
+        try:
+            has_creds = pd.io.common.file_exists('credentials.json')
+        except Exception:
+            has_creds = False
+        st.session_state.offline_mode = not has_creds
+
+    offline = st.checkbox("Offline / demo mode (disable Google Sheets)", value=st.session_state.offline_mode)
+    st.session_state.offline_mode = offline
+
+    # set an environment flag so helpers respect the toggle
+    import os
+    os.environ['PERSONAL_ANALYTICS_OFFLINE'] = '1' if offline else '0'
+
     if st.button("Refresh Data from Google Sheet"):
-        df = refresh_data(csv_data)
-        st.success("Data refreshed!")
-    
+        if offline:
+            st.warning("Offline mode is enabled — skipping Google Sheets sync.")
+        else:
+            df = refresh_data(csv_data)
+            st.success("Data refreshed!")
+
     if st.button("Edit Variables"):
-        variables_menu(streamlit=True)  # You’d adapt your variables menu to Streamlit
+        variables_menu(df, csv_data, streamlit=True)

@@ -1,7 +1,13 @@
 import streamlit as st
 import variables
+import helpers
 
 def analysis_menu(df, streamlit=False):
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
     numeric_df = df.select_dtypes(include=["number"])
 
     if streamlit:
@@ -72,8 +78,8 @@ def get_std(df):
 
 # takes input for which variable and returns the corresponding column key
 def numeric_input_helper(stat):
-
-    numeric_vars = variables.get_numeric_keys()
+    # get mapping of numeric variable index->key
+    numeric_vars = variables.get_numeric_variables()
 
     print(f'What variable number would you like to find the {stat} of?\n')
 

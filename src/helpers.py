@@ -4,6 +4,7 @@ import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
+import numpy as np
 
 # Helper to refresh and add new data
 def refresh_data(csv_data):
@@ -11,6 +12,11 @@ def refresh_data(csv_data):
 
 # Pushes the changes made to google sheet
 def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json'):
+    # Respect offline/demo override
+    if os.environ.get('PERSONAL_ANALYTICS_OFFLINE', '0') == '1':
+        print('Offline mode enabled: skipping push_to_sheet.')
+        return
+
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets",
                  "https://www.googleapis.com/auth/drive"]
@@ -29,6 +35,17 @@ def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json
 # helper that allows me to add data from both the automation and manually
 def sync_sheet(csv_data, sheet_name='Daily Analytics'):
     try:
+        # If offline mode, skip Google Sheets and use local CSV only
+        if os.environ.get('PERSONAL_ANALYTICS_OFFLINE', '0') == '1':
+            print('Offline mode enabled: skipping sync from Google Sheet.')
+            if os.path.exists(csv_data):
+                local_df = pd.read_csv(csv_data)
+                local_df['date'] = pd.to_datetime(local_df['date'])
+                variables.sync_variables_with_df(local_df)
+                return local_df
+            else:
+                return pd.DataFrame(columns=list(variables.variables.keys()))
+
         sheet_df = read_google_sheet(sheet_name, creds_path="credentials.json")
 
         # read the csv if it exists
@@ -43,6 +60,8 @@ def sync_sheet(csv_data, sheet_name='Daily Analytics'):
 
         combined_df.sort_values('date', inplace=True)
         combined_df.to_csv(csv_data, index=False)
+
+        variables.sync_variables_with_df(combined_df)
 
         new_rows = len(combined_df) - len(local_df)
         if new_rows > 0:
@@ -70,37 +89,41 @@ def read_google_sheet(sheet_name, creds_path="credentials.json"):
 
 
 # helper to pick variables
-def pick_var(var_question, df=None, streamlit=False):
-    
+def pick_var(var_question, df=None, numeric_only=False, streamlit=False):
     if streamlit and df is not None:
         return st.selectbox(var_question, df.columns)
 
-    numeric_vars = variables.get_numeric_keys()
-    
+    if numeric_only:
+        var_keys = variables.get_numeric_keys()  # only numeric
+    else:
+        var_keys = list(variables.variables.keys())  # all current variables
+
     print(f'{var_question}\n')
 
-
-    for i, key in numeric_vars.items():
+    for i, key in enumerate(var_keys, start=1):
         print(f"{i}. {variables.variables[key]['label']}")
 
-    print(f"{len(numeric_vars) + 1}. Quit\n")
+    print(f"{len(var_keys) + 1}. Quit\n")
 
     inp = input('Number: ').strip()
-    
+
     try:
         ind = int(inp)
-        if ind == len(numeric_vars) + 1:
+        if ind == len(var_keys) + 1:
             print('Quitting...')
             return None
-        if ind not in numeric_vars:
+        if ind < 1 or ind > len(var_keys):
             print('Please enter a valid option.')
             return None
     except ValueError:
         print('Please enter a valid option.')
         return None
-        
-    print(f'\nSelected {numeric_vars[ind].replace("_", " ").title()}')
-    return numeric_vars[ind]
+
+    selected_key = var_keys[ind - 1]
+    print(f'\nSelected {selected_key.replace("_", " ").title()}')
+    return selected_key
+
+
     
 
 # Helper to ask for boolean
@@ -115,4 +138,50 @@ def get_bool(question):
             break
         else:
             print('Please enter (y/n).')
+
+
+def clean_and_coerce(df):
+    
+    if df is None:
+        return pd.DataFrame()
+
+    df = df.copy()
+
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+    # numeric columns
+    try:
+        numeric_keys = variables.get_numeric_keys()
+    except Exception:
+        numeric_keys = [k for k, v in variables.variables.items() if v.get('type') == 'numeric']
+
+    for key in numeric_keys:
+        if key in df.columns:
+            df[key] = pd.to_numeric(df[key], errors='coerce')
+
+    # boolean columns
+    bool_keys = [k for k, v in variables.variables.items() if v.get('type') == 'boolean']
+
+    def _to_bool(val):
+        if pd.isna(val):
+            return False
+        if isinstance(val, bool):
+            return val
+        s = str(val).strip().lower()
+        if s in ('1', 'true', 't', 'yes', 'y'):
+            return True
+        if s in ('0', 'false', 'f', 'no', 'n'):
+            return False
+        # fallback: try numeric
+        try:
+            return float(s) != 0
+        except Exception:
+            return False
+
+    for key in bool_keys:
+        if key in df.columns:
+            df[key] = df[key].apply(_to_bool)
+
+    return df
     

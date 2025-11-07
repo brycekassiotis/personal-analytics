@@ -18,7 +18,7 @@ def main():
 
 columns = list(variables.variables.keys())
 
-numeric_columns = list(variables.get_numeric_keys().values())
+numeric_columns = list(variables.get_numeric_keys())
 
 def menu(df, csv_data):
 
@@ -39,9 +39,9 @@ def menu(df, csv_data):
         elif inp == '3':
             plots.plot_menu(df)
         elif inp == '4':
-            df = analysis.analysis_menu(df)
+            df = analysis.analysis_menu(df, csv_data)
         elif inp == '5':
-            variables.variables_menu()
+            variables.variables_menu(df, csv_data)
         elif inp == '6':
             print('Exiting menu...')
             break
@@ -66,8 +66,14 @@ def get_user_input(df):
 
     sleep_quality = rating_helper('Rate your sleep quality 1 to 10: ')
     
-    # loop for exercise boolean
-    exercise_bool = helpers.get_bool("Did you exercise today?")
+    # loop for exercise boolean and, if yes, get exercise type
+    exercised = helpers.get_bool("Did you exercise today?")
+    if exercised:
+        exercise = input('What exercise did you do today? (e.g., legs, push, pull) ')
+        if exercise.strip() == '':
+            exercise = 'other'
+    else:
+        exercise = 'rest'
     
     steps = input('How many steps did you take today? ')
     calories = number_helper('How many calories did you consume today? ')
@@ -86,8 +92,8 @@ def get_user_input(df):
     vitamin_d = helpers.get_bool("Did you take vitamin D today?")
     magnesium = helpers.get_bool("Did you take magnesium today?")
 
-    return [date_obj, sleep_hours, sleep_quality, steps, exercise_bool, calories, productivity, stress, 
-            day_rating, mood, screen_time, min_temp, max_temp, weather, day_of_week, social, notes, creatine, vitamin_d, magnesium]
+    return [date_obj, sleep_hours, sleep_quality, steps, exercise, calories, productivity, stress, 
+        day_rating, mood, screen_time, min_temp, max_temp, weather, day_of_week, social, notes, creatine, vitamin_d, magnesium]
 
 
 # Rating helper to check if value is within 0-10
@@ -134,6 +140,13 @@ def read_data():
                 df[col] = None
         df['date'] = pd.to_datetime(df['date'])
 
+    # Clean and coerce types based on variables
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        # best-effort: if cleaning fails, return original df
+        pass
+
     return df, csv_data
 
 
@@ -166,8 +179,17 @@ def add_data(df, csv_data, manual_values=None):
     df.sort_values('date', inplace=True)
 
     # update csv
+    try:
+        df = helpers.clean_and_coerce(df)
+    except Exception:
+        pass
+
     df.to_csv(csv_data, index=False)
-    helpers.push_to_sheet(df)
+    try:
+        # use safe push_to_sheet (will no-op in offline mode)
+        helpers.push_to_sheet(df)
+    except Exception as e:
+        print(f'Could not push to sheet: {e}')
 
     return df
 
@@ -183,7 +205,7 @@ def show_week(df, csv_data):
     df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))]
 
     # Get numeric columns dynamically
-    numeric_columns = list(get_numeric_keys().values())
+    numeric_columns = list(get_numeric_keys())
 
     # Convert numeric columns to numbers (ignore errors)
     df_last_week[numeric_columns] = df_last_week[numeric_columns].apply(
