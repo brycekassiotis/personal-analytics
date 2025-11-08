@@ -27,8 +27,28 @@ st.markdown(
 st.set_page_config(page_title="Personal Analytics", layout="wide")
 st.title("Personal Analytics Dashboard")
 
-# Load data
-df, csv_data = read_data()
+
+# Load data, support demo mode
+import os
+
+# Demo mode toggle logic (for instant feedback)
+if 'offline_mode' not in st.session_state:
+    # default to offline if credentials.json is missing
+    try:
+        has_creds = pd.io.common.file_exists('credentials.json')
+    except Exception:
+        has_creds = False
+    st.session_state.offline_mode = not has_creds
+
+offline = st.session_state.offline_mode
+
+# Show demo info popup instantly when toggled
+if offline:
+    st.info('Demo mode is enabled. You are using sample data and changes will not be saved to Google Sheets.')
+    df = pd.read_csv('demo_data.csv')
+    csv_data = 'demo_data.csv'
+else:
+    df, csv_data = read_data()
 
 # Tabs
 tab_collect, tab_stats, tab_settings = st.tabs(["Collect", "Stats", "Settings"])
@@ -93,8 +113,7 @@ with tab_collect:
             'day_rating': day_rating,
             'mood': mood,
             'screen_time': screen_time,
-            # placeholder avg_temp / min/max temp and weather handled by None if not present
-            'avg_temp': None,
+            # placeholder min/max temp and weather handled by None if not present
             'weather': None,
             'day_of_week': date_obj.strftime("%A"),
             'social': social,
@@ -131,20 +150,10 @@ with tab_settings:
     
     st.write("Manage variables and preferences here.")
 
-    # Offline / Demo Mode toggle
-    if 'offline_mode' not in st.session_state:
-        # default to offline if credentials.json is missing
-        try:
-            has_creds = pd.io.common.file_exists('credentials.json')
-        except Exception:
-            has_creds = False
-        st.session_state.offline_mode = not has_creds
 
-    offline = st.checkbox("Offline / demo mode (disable Google Sheets)", value=st.session_state.offline_mode)
+    # Offline / Demo Mode toggle (instant update)
+    offline = st.checkbox("Offline / demo mode (disable Google Sheets)", value=st.session_state.offline_mode, key="offline_mode")
     st.session_state.offline_mode = offline
-
-    # set an environment flag so helpers respect the toggle
-    import os
     os.environ['PERSONAL_ANALYTICS_OFFLINE'] = '1' if offline else '0'
 
     if st.button("Refresh Data from Google Sheet"):

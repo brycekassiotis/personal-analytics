@@ -1,8 +1,8 @@
 import helpers
 import shutil
-import streamlit as st
 
 variables = {
+    "date": {"label": "Date", "type": "text"},
     "sleep_hours": {"label": "Sleep Hours", "type": "numeric"},
     "sleep_quality": {"label": "Sleep Quality", "type": "numeric"},
     "steps": {"label": "Steps", "type": "numeric"},
@@ -29,7 +29,8 @@ def variables_menu(df, csv_data, streamlit=False):
     sync_variables_with_df(df)
 
     if streamlit:
-        st.header("⚙️ Variable Settings")
+        import streamlit as st
+        st.header("Variable Settings")
         sync_variables_with_df(df)
 
         # Store selected variable persistently
@@ -141,7 +142,7 @@ def variables_menu(df, csv_data, streamlit=False):
                 print(f"- {label}")
 
         elif inp == '2':
-            add_variable(df)
+            add_variable(df, csv_data)
         elif inp == '3':
             edit_variable(df, csv_data)
         elif inp == '4':
@@ -244,7 +245,8 @@ def edit_variable(df, csv_data):
 # ==============================
 
 def get_numeric_variables():
-    return {i + 1: key for i, (key, val) in enumerate(variables.items()) if val['type'] == 'numeric'}
+    numeric_keys = [key for key, val in variables.items() if val['type'] == 'numeric']
+    return {i + 1: key for i, key in enumerate(numeric_keys)}
 
 
 def get_numeric_keys():
@@ -254,14 +256,13 @@ def get_numeric_keys():
 def sync_variables_with_df(df):
     global variables
 
-    # keep only columns that exist in df
-    current_keys = list(df.columns)
-    new_variables = {}
+    if df is None:
+        return
 
+    # Only update the variable metadata for new columns, do not remove any existing columns from the DataFrame
+    current_keys = list(df.columns)
     for col in current_keys:
-        if col in variables:
-            new_variables[col] = variables[col]
-        else:
+        if col not in variables:
             if df[col].dtype in ['float64', 'int64']:
                 var_type = 'numeric'
             elif df[col].dtype == 'bool':
@@ -269,12 +270,10 @@ def sync_variables_with_df(df):
             else:
                 var_type = 'text'
 
-            new_variables[col] = {
+            variables[col] = {
                 "label": col.replace("_", " ").title(),
                 "type": var_type
             }
-
-    variables = new_variables
 
 
 def get_all_variables():

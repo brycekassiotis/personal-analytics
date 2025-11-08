@@ -1,3 +1,11 @@
+# Utility: re-upload local CSV to Google Sheet (for recovery)
+def reupload_csv_to_sheet(csv_data, sheet_name='Daily Analytics'):
+    import pandas as pd
+    df = pd.read_csv(csv_data)
+    # Ensure 'date' is string for upload
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    push_to_sheet(df, sheet_name=sheet_name)
 import os
 import variables
 import gspread
@@ -23,11 +31,24 @@ def push_to_sheet(df, sheet_name='Daily Analytics', creds_file='credentials.json
         creds = Credentials.from_service_account_file(creds_file, scopes=scope)
         client = gspread.authorize(creds)
 
+        # Always overwrite the Google Sheet with only the columns present in the DataFrame
         sheet = client.open(sheet_name).sheet1
-        sheet.clear()
-        sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-        print("Uploaded latest data to Google Sheet.")
+        # Convert all pd.Timestamp to string (ISO format) for Google Sheets JSON compliance
+        for col in df.columns:
+            if df[col].dtype == 'datetime64[ns]' or df[col].dtype == 'datetime64[ns, UTC]':
+                df[col] = df[col].dt.strftime('%Y-%m-%d')
+
+        # Convert all NaN/None to empty string for Google Sheets JSON compliance
+        df = df.where(pd.notnull(df), '')
+
+        # SAFEGUARD: Only clear and update if DataFrame is not empty and has 'date' column
+        if not df.empty and 'date' in df.columns:
+            sheet.clear()
+            sheet.update([df.columns.values.tolist()] + df.values.tolist())
+            print("Uploaded latest data to Google Sheet.")
+        else:
+            print("Skipped Google Sheet update: DataFrame is empty or missing 'date' column.")
     except Exception as e:
         print(f"Could not push data to Google Sheet: {e}")
 
@@ -46,31 +67,15 @@ def sync_sheet(csv_data, sheet_name='Daily Analytics'):
             else:
                 return pd.DataFrame(columns=list(variables.variables.keys()))
 
+        # Always overwrite local CSV with Google Sheet data (source of truth)
         sheet_df = read_google_sheet(sheet_name, creds_path="credentials.json")
-
-        # read the csv if it exists
-        if os.path.exists(csv_data):
-            local_df = pd.read_csv(csv_data)
-            local_df['date'] = pd.to_datetime(local_df['date'])
-        else:
-            local_df = pd.DataFrame(columns=list(variables.variables.keys()))
-        
-        # merge by date to only keep new rows from the sheet
-        combined_df = pd.concat([local_df, sheet_df]).drop_duplicates(subset=['date'], keep='last')
-
-        combined_df.sort_values('date', inplace=True)
-        combined_df.to_csv(csv_data, index=False)
-
-        variables.sync_variables_with_df(combined_df)
-
-        new_rows = len(combined_df) - len(local_df)
-        if new_rows > 0:
-            print(f"Synced {new_rows} new rows from Google Sheet.")
-        else:
-            print('No new data to sync.')
-
-        return combined_df
-    
+        if not sheet_df.empty:
+            sheet_df['date'] = pd.to_datetime(sheet_df['date'], errors='coerce')
+        sheet_df.sort_values('date', inplace=True)
+        sheet_df.to_csv(csv_data, index=False)
+        variables.sync_variables_with_df(sheet_df)
+        print('Local CSV overwritten with Google Sheet data.')
+        return sheet_df
     except Exception as e:
         print(f"Could not sync from Google Sheet: {e}")
         return pd.read_csv(csv_data) if os.path.exists(csv_data) else pd.DataFrame(columns=list(variables.variables.keys()))
@@ -162,6 +167,7 @@ def clean_and_coerce(df):
 
     # boolean columns
     bool_keys = [k for k, v in variables.variables.items() if v.get('type') == 'boolean']
+    text_keys = [k for k, v in variables.variables.items() if v.get('type') == 'text']
 
     def _to_bool(val):
         if pd.isna(val):
@@ -178,6 +184,11 @@ def clean_and_coerce(df):
             return float(s) != 0
         except Exception:
             return False
+            
+    # Ensure text columns stay as text
+    for key in text_keys:
+        if key in df.columns:
+            df[key] = df[key].astype(str)
 
     for key in bool_keys:
         if key in df.columns:

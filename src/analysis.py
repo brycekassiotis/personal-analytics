@@ -1,4 +1,4 @@
-import streamlit as st
+
 import variables
 import helpers
 
@@ -11,6 +11,7 @@ def analysis_menu(df, streamlit=False):
     numeric_df = df.select_dtypes(include=["number"])
 
     if streamlit:
+        import streamlit as st
         option = st.selectbox("Select analysis type:", ["Summary", "Average", "Median", "Standard Deviation"])
 
         if option == "Summary":
@@ -25,7 +26,7 @@ def analysis_menu(df, streamlit=False):
 
     # loop until the user quits
     while True:
-        inp = input("Select: \n"
+        inp = input("\nSelect: \n"
             "1. Summarize data \n" 
             "2. Get average of data\n"
             "3. Get median of data\n"
@@ -36,18 +37,22 @@ def analysis_menu(df, streamlit=False):
         if inp == '1':
             print(numeric_df.describe())
         elif inp == '2':
-            print(numeric_df.get_average())
+            result = get_average(df)
+            if result is not None:
+                print(result)
         elif inp == '3':
-            print(numeric_df.get_median())
+            result = get_median(df)
+            if result is not None:
+                print(result)
         elif inp == '4':
-            print(numeric_df.get_std())
+            result = get_std(df)
+            if result is not None:
+                print(result)
         elif inp == '5':
             print('Exiting menu...')
             break
         else:
             print('\nPlease select an option.\n')
-
-        return df
 
 
 def get_average(df):
@@ -56,7 +61,7 @@ def get_average(df):
     if col_key is None:
         return
 
-    return f"The mean of {col_key.replace('_', ' ').title()} is {df[col_key].mean():.2f}"
+    return f"The mean of {col_key.replace('_', ' ').title()} is {df[col_key].mean():.2f}\n"
 
 
 
@@ -66,7 +71,7 @@ def get_median(df):
     if col_key is None:
         return
 
-    return f"The median of {col_key.replace('_', ' ').title()} is {df[col_key].median():.2f}"
+    return f"The median of {col_key.replace('_', ' ').title()} is {df[col_key].median():.2f}\n"
 
 
 def get_std(df):
@@ -74,7 +79,7 @@ def get_std(df):
     if col_key is None:
         return
 
-    return f"The standard deviation of {col_key.replace('_', ' ').title()} is {df[col_key].std():.2f}"
+    return f"The standard deviation of {col_key.replace('_', ' ').title()} is {df[col_key].std():.2f}\n"
 
 # takes input for which variable and returns the corresponding column key
 def numeric_input_helper(stat):
@@ -86,7 +91,7 @@ def numeric_input_helper(stat):
     for i, key in numeric_vars.items():
         print(f"{i}. {variables.variables[key]['label']}")
 
-    print(f"{len(numeric_vars) + 1}. Quit")
+    print(f"{len(numeric_vars) + 1}. Quit\n")
 
     inp = input('Number: ')
     

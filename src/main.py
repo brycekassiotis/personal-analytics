@@ -11,6 +11,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSV_PATH = os.path.join(BASE_DIR, 'data', 'data.csv')
 
 
+
 def main():
     df, csv_data = read_data()
     df = helpers.sync_sheet(csv_data, sheet_name='Daily Analytics')
@@ -39,7 +40,7 @@ def menu(df, csv_data):
         elif inp == '3':
             plots.plot_menu(df)
         elif inp == '4':
-            df = analysis.analysis_menu(df, csv_data)
+            df = analysis.analysis_menu(df)
         elif inp == '5':
             variables.variables_menu(df, csv_data)
         elif inp == '6':
@@ -51,7 +52,7 @@ def menu(df, csv_data):
 
 def get_user_input(df):
 
-    date_obj = datetime.now().date()
+    date_obj = pd.Timestamp.now().normalize()
     
     # loop for sleep hours
     while True:
@@ -64,29 +65,25 @@ def get_user_input(df):
         except ValueError:
             print('Please enter a valid number.')
 
-    sleep_quality = rating_helper('Rate your sleep quality 1 to 10: ')
-    
-    # loop for exercise boolean and, if yes, get exercise type
-    exercised = helpers.get_bool("Did you exercise today?")
-    if exercised:
-        exercise = input('What exercise did you do today? (e.g., legs, push, pull) ')
-        if exercise.strip() == '':
-            exercise = 'other'
-    else:
+    sleep_quality = rating_helper('Rate your sleep quality 0 to 10: ')
+
+    # Get exercise type
+    exercise = input('What exercise did you do today? (e.g., legs, push, pull, or "rest" if none) ').strip()
+    if exercise == '':
         exercise = 'rest'
     
     steps = input('How many steps did you take today? ')
     calories = number_helper('How many calories did you consume today? ')
-    productivity = rating_helper('Rate your productivity today 1 to 10: ')
-    stress = rating_helper('Rate your stress levels today 1 to 10: ')
-    day_rating = rating_helper('Rate your day today 1 to 10: ')
-    mood = rating_helper('Rate your mood today 1 to 10: ')
+    productivity = rating_helper('Rate your productivity today 0 to 10: ')
+    stress = rating_helper('Rate your stress levels today 0 to 10: ')
+    day_rating = rating_helper('Rate your day today 0 to 10: ')
+    mood = rating_helper('Rate your mood today 0 to 10: ')
     screen_time = rating_helper('How many hours of screen time did you have today? ')
     min_temp = None
     max_temp = None
     weather = None
     day_of_week = date_obj.strftime("%A")
-    social = rating_helper("How social were you today from 1 to 10: ")
+    social = rating_helper("How social were you today from 0 to 10: ")
     notes = input('Notes: ')
     creatine = helpers.get_bool("Did you take creatine today?")
     vitamin_d = helpers.get_bool("Did you take vitamin D today?")
@@ -155,28 +152,41 @@ def add_data(df, csv_data, manual_values=None):
     # if manual values provided from Streamlit, use those
     if manual_values is not None:
         values = manual_values
-        date_obj = pd.to_datetime(values[0])
+        date_obj = pd.to_datetime(values[0]).normalize()
     else:
         # CLI mode — get values interactively
         values = get_user_input(df)
         if values is None:
             return df
-        date_obj = pd.to_datetime(values[0])
+        date_obj = values[0]  # already a pd.Timestamp from get_user_input
         
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.normalize()
 
+    # Convert numeric values to proper types
+    numeric_cols = variables.get_numeric_keys()
+    
+    # Create values dict with proper types
+    values_dict = dict(zip(df.columns, values))
+    for col in numeric_cols:
+        if col in values_dict and values_dict[col] and isinstance(values_dict[col], str):
+            try:
+                values_dict[col] = float(values_dict[col])
+            except ValueError:
+                values_dict[col] = None
+    
     # if overwritten replace old data
-    if date_obj in df['date'].values:
-        index = df.index[df['date'] == date_obj][0]
-        df.loc[index, df.columns[1:]] = values[1:]
-
+    mask = df['date'].dt.normalize() == date_obj.normalize()
+    if mask.any():
+        index = df.index[mask][0]
+        for col in df.columns[1:]:  # Skip date column
+            df.loc[index, col] = values_dict[col]
     # make and add new row otherwise
     else:
-        new_row = pd.DataFrame([values], columns=df.columns)
+        new_row = pd.DataFrame([values_dict])
         df = pd.concat([df, new_row], ignore_index=True)
 
     # sort by date
-    df.sort_values('date', inplace=True)
+    df.sort_values('date', inplace=True, ignore_index=True)
 
     # update csv
     try:
@@ -201,14 +211,14 @@ def show_week(df, csv_data):
     # Convert date column safely
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
-    # Filter last 7 days
-    df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))]
+    # Filter last 7 days and create a copy
+    df_last_week = df[df['date'] >= (pd.Timestamp.today() - pd.Timedelta(days=7))].copy()
 
     # Get numeric columns dynamically
     numeric_columns = list(get_numeric_keys())
 
     # Convert numeric columns to numbers (ignore errors)
-    df_last_week[numeric_columns] = df_last_week[numeric_columns].apply(
+    df_last_week.loc[:, numeric_columns] = df_last_week[numeric_columns].apply(
         pd.to_numeric, errors='coerce'
     )
 

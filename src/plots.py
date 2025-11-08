@@ -93,7 +93,6 @@ def plot_variable_over_time(df, streamlit=False):
     plt.ylabel(col.replace('_', ' ').title())
     plt.title(title)
     
-    save_plot_helper(title)
     plt.show()
 
 
@@ -144,7 +143,6 @@ def scatter_plot(df, streamlit=False):
 
     plt.scatter(df[x_data].astype(float), df[y_data].astype(float))
 
-    save_plot_helper(title)
     plt.show()
 
 
@@ -226,7 +224,6 @@ def corr_plot(df, streamlit=False):
     if streamlit:
         st.pyplot(fig)
     else:
-        save_plot_helper(f"{x_data}_vs_{y_data}")
         plt.show()
 
 
@@ -263,15 +260,3 @@ def corr_heatmap(df, streamlit=False):
         plt.show()
 
 
-# helper to check if user wants to save the plot
-def save_plot_helper(title):
-    
-    save_bool = input('Would you like to save the plot? (y/n) ').lower().strip() in ('y', 'yes')
-
-    if save_bool: 
-        # save the plot as a PNG file
-        filename = f"{title.replace(' ', '_').lower()}.png"
-        plt.savefig(filename)
-        print(f'Plot saved as {filename}')
-    else:
-        print('Not saving plot...')
