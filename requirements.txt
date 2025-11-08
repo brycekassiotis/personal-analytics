@@ -1,0 +1,9 @@
+# Minimal requirements with a numpy pin to avoid building from source on Windows
+streamlit
+pandas
+numpy
+matplotlib
+gspread
+google-auth
+seaborn
+pytest

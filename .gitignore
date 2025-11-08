@@ -5,6 +5,9 @@ src/ai-assistant-*.json
 # Ignore personal data
 data/
 
+# prompts
+.github/prompts/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
