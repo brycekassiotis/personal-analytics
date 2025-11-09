@@ -66,64 +66,57 @@ def variables_menu(df, csv_data, streamlit=False):
 
         st.markdown("---")
 
-        # === Edit / Delete Variable ===
-        st.subheader("Edit or Delete Variable")
+        # # === Edit / Delete Variable ===
+        # st.subheader("Edit or Delete Variable")
 
-        var_keys = list(variables.keys())
-        selected = st.selectbox(
-            "Select a variable", 
-            ["None"] + var_keys,
-            index=(var_keys.index(st.session_state.selected_var_key) + 1) if st.session_state.selected_var_key in var_keys else 0,
-            key="var_select"
-        )
+        # var_keys = list(variables.keys())
+        # selected = st.selectbox(
+        #     "Select a variable", 
+        #     ["None"] + var_keys,
+        #     index=(var_keys.index(st.session_state.selected_var_key) + 1) if st.session_state.selected_var_key in var_keys else 0,
+        #     key="var_select"
+        # )
 
-        if selected != "None":
-            st.session_state.selected_var_key = selected
-            selected_var = variables[selected]
-            st.write(f"**Current Label:** {selected_var['label']}")
-            st.write(f"**Current Type:** {selected_var['type']}")
+        # if selected != "None":
+        #     st.session_state.selected_var_key = selected
+        #     selected_var = variables[selected]
+        #     st.write(f"**Current Label:** {selected_var['label']}")
+        #     st.write(f"**Current Type:** {selected_var['type']} *(cannot be changed)*")
 
-            new_label = st.text_input("New Label", value=selected_var["label"], key=f"label_{selected}")
-            new_type = st.selectbox(
-                "New Type",
-                ["numeric", "text", "boolean"],
-                index=["numeric", "text", "boolean"].index(selected_var["type"]),
-                key=f"type_{selected}"
-            )
+        #     new_label = st.text_input("New Label", value=selected_var["label"], key=f"label_{selected}")
 
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Save Changes", key=f"save_{selected}"):
-                    variables[selected]["label"] = new_label
-                    variables[selected]["type"] = new_type
-                    df.to_csv(csv_data, index=False)
-                    helpers.push_to_sheet(df)
-                    st.success(f"Saved changes to '{new_label}'.")
+        #     col1, col2 = st.columns(2)
+        #     with col1:
+        #         if st.button("Save Changes", key=f"save_{selected}"):
+        #             variables[selected]["label"] = new_label
+        #             df.to_csv(csv_data, index=False)
+        #             helpers.push_to_sheet(df)
+        #             st.success(f"Saved changes to '{new_label}'.")
 
-            with col2:
-                if st.button("Delete Variable", key=f"delete_{selected}"):
-                    st.session_state.confirm_delete = selected
+        #     with col2:
+        #         if st.button("Delete Variable", key=f"delete_{selected}"):
+        #             st.session_state.confirm_delete = selected
 
-            if "confirm_delete" in st.session_state and st.session_state.confirm_delete == selected:
-                confirm = st.text_input("Type DELETE to confirm deletion", key=f"confirm_{selected}")
-                if confirm == "DELETE":
-                    shutil.copy(csv_data, csv_data.replace(".csv", "_backup.csv"))
-                    if selected in df.columns:
-                        df.drop(columns=[selected], inplace=True)
-                    del variables[selected]
-                    df.to_csv(csv_data, index=False)
-                    helpers.push_to_sheet(df)
-                    st.warning(f"Deleted variable '{selected_var['label']}'.")
-                    st.session_state.selected_var_key = None
-                    del st.session_state.confirm_delete
-                    st.rerun()
+        #     if "confirm_delete" in st.session_state and st.session_state.confirm_delete == selected:
+        #         confirm = st.text_input("Type DELETE to confirm deletion", key=f"confirm_{selected}")
+        #         if confirm == "DELETE":
+        #             shutil.copy(csv_data, csv_data.replace(".csv", "_backup.csv"))
+        #             if selected in df.columns:
+        #                 df.drop(columns=[selected], inplace=True)
+        #             del variables[selected]
+        #             df.to_csv(csv_data, index=False)
+        #             helpers.push_to_sheet(df)
+        #             st.warning(f"Deleted variable '{selected_var['label']}'.")
+        #             st.session_state.selected_var_key = None
+        #             del st.session_state.confirm_delete
+        #             st.rerun()
 
-            st.markdown("---")
-            st.subheader("Numeric Variables (for plotting)")
-            numeric_vars = [v["label"] for v in variables.values() if v["type"] == "numeric"]
-            st.write(numeric_vars)
+        st.markdown("---")
+        st.subheader("Numeric Variables (for plotting)")
+        numeric_vars = [v["label"] for v in variables.values() if v["type"] == "numeric"]
+        st.write(numeric_vars)
 
-            return
+        return
 
 
     # loop until user quits
@@ -131,21 +124,20 @@ def variables_menu(df, csv_data, streamlit=False):
         inp = input('\nSelect: \n'
         '1. View variables \n'
         '2. Add new variable \n'
-        '3. Edit variable\n'
-        '4. Quit \n'
+        # '3. Edit variable\n'
+        '3. Quit \n'
         '\nNumber: ')
 
         if inp == '1':
-            print("\nCurrent Variables in DataFrame:\n")
-            for col in df.columns:
-                label = variables.get(col, {}).get('label', col)
-                print(f"- {label}")
+            print("\nCurrent Variables:\n")
+            for key, val in variables.items():
+                print(f"- {val['label']} ({val['type']})")
 
         elif inp == '2':
-            add_variable(df, csv_data)
+            df = add_variable(df, csv_data)
+        # elif inp == '3':
+        #     df = edit_variable(df, csv_data)
         elif inp == '3':
-            edit_variable(df, csv_data)
-        elif inp == '4':
             print('Exiting menu...')
             break
         else:
@@ -190,7 +182,7 @@ def edit_variable(df, csv_data):
     selected_var = variables[selected_key]
 
     print(f"\nEditing '{selected_var['label']}' ({selected_var['type']})")
-    print("Options:\n1. Edit label\n2. Edit type\n3. Delete variable\n4. Cancel")
+    print("Options:\n1. Edit label\n2. Delete variable\n3. Cancel")
     action = input("Select option: ").strip()
 
     if action == "1":
@@ -199,15 +191,6 @@ def edit_variable(df, csv_data):
         print("Label updated.")
 
     elif action == "2":
-        new_type = input("Enter new type (numeric, text, boolean): ").strip().lower()
-        if new_type in ["numeric", "text", "boolean"]:
-            variables[selected_key]['type'] = new_type
-            print("Type updated.")
-        else:
-            print("Invalid type!")
-            return df
-
-    elif action == "3":
         confirm = input(f"Are you sure you want to delete '{selected_var['label']}'? (y/n): ").strip().lower()
         if confirm in ['y', 'yes']:
             confirm_final = input("Type DELETE to confirm: ").strip()
@@ -227,7 +210,7 @@ def edit_variable(df, csv_data):
             print("Delete cancelled.")
             return df
 
-    elif action == "4":
+    elif action == "3":
         print("Cancelled.")
         return df
     else:

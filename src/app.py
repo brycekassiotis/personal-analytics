@@ -153,15 +153,12 @@ with tab_settings:
 
     # Offline / Demo Mode toggle (instant update)
     offline = st.checkbox("Offline / demo mode (disable Google Sheets)", value=st.session_state.offline_mode, key="offline_mode")
-    st.session_state.offline_mode = offline
-    os.environ['PERSONAL_ANALYTICS_OFFLINE'] = '1' if offline else '0'
+    # The checkbox automatically updates st.session_state.offline_mode via the key parameter
+    os.environ['PERSONAL_ANALYTICS_OFFLINE'] = '1' if st.session_state.offline_mode else '0'
 
-    if st.button("Refresh Data from Google Sheet"):
-        if offline:
-            st.warning("Offline mode is enabled — skipping Google Sheets sync.")
-        else:
-            df = refresh_data(csv_data)
-            st.success("Data refreshed!")
+    if st.button("Refresh Data from Google Sheet", disabled=st.session_state.offline_mode):
+        df = refresh_data(csv_data)
+        st.success("Data refreshed!")
 
-    if st.button("Edit Variables"):
-        variables_menu(df, csv_data, streamlit=True)
+    # if st.button("Edit Variables", disabled=st.session_state.offline_mode):
+    #     variables_menu(df, csv_data, streamlit=True)

@@ -5,6 +5,10 @@ import seaborn as sns
 import streamlit as st
 import variables
 import helpers
+import warnings
+
+# Suppress FutureWarning about downcasting behavior
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 def plot_menu(df, streamlit=False):
     if streamlit:
@@ -67,15 +71,46 @@ def plot_variable_over_time(df, streamlit=False):
         selected_label = st.selectbox("Select variable:", list(numeric_labels.values()))
         col = [k for k, v in numeric_labels.items() if v == selected_label][0]
 
+        # Checkbox for line of best fit
+        show_best_fit = st.checkbox("Show line of best fit")
 
         # Button to generate plot
         if st.button("Generate Plot"):
+            # Filter out rows where the selected variable has no data
+            df_filtered = df[df[col].notna()].copy()
+            
             fig, ax = plt.subplots()
-            ax.plot(df['date'], df[col])
+            ax.plot(df_filtered['date'], df_filtered[col], label='Data')
+            
+            # Add line of best fit if requested
+            if show_best_fit and len(df_filtered) > 1:
+                x_numeric = np.arange(len(df_filtered))
+                y_numeric = df_filtered[col].values
+                z = np.polyfit(x_numeric, y_numeric, 1)
+                p = np.poly1d(z)
+                ax.plot(df_filtered['date'], p(x_numeric), "r--", alpha=0.8, label='Best Fit')
+                ax.legend()
+            
             ax.set_xlabel('Date')
             ax.set_ylabel(col.replace("_", " ").title())
             ax.set_title(f"{col.replace('_',' ').title()} Over Time")
-            plt.xticks(rotation=45)
+            # Limit to max 5 x-ticks (dates)
+            if len(df_filtered['date']) > 5:
+                step = max(1, len(df_filtered['date']) // 5)
+                xticks = df_filtered['date'].iloc[::step]
+                ax.set_xticks(xticks)
+                def _format_date(d):
+                    import pandas as pd
+                    try:
+                        dt = pd.to_datetime(d, errors='coerce')
+                        if pd.isnull(dt):
+                            return str(d)
+                        return dt.strftime('%Y-%m-%d')
+                    except Exception:
+                        return str(d)
+                ax.set_xticklabels([_format_date(d) for d in xticks], rotation=45)
+            else:
+                plt.xticks(rotation=45)
             st.pyplot(fig)
         return
 
@@ -84,15 +119,45 @@ def plot_variable_over_time(df, streamlit=False):
         col = pick_var('What variable should be plotted against time?', numeric_only=True)
         if not col:
             return
+        
+        # Ask if user wants line of best fit
+        best_fit_input = input('Add line of best fit? (y/n): ').lower().strip()
+        show_best_fit = best_fit_input in ['y', 'yes']
 
+    # Filter out rows where the selected variable has no data
+    df_filtered = df[df[col].notna()].copy()
+    
     title = f'{col.replace("_", " ").title()} Over Time'
-    plt.plot(df['date'], df[col])
-    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(8))
-    plt.gcf().autofmt_xdate()
+    plt.plot(df_filtered['date'], df_filtered[col], label='Data')
+    
+    # Add line of best fit if requested
+    if show_best_fit and len(df_filtered) > 1:
+        x_numeric = np.arange(len(df_filtered))
+        y_numeric = df_filtered[col].values
+        z = np.polyfit(x_numeric, y_numeric, 1)
+        p = np.poly1d(z)
+        plt.plot(df_filtered['date'], p(x_numeric), "r--", alpha=0.8, label='Best Fit')
+        plt.legend()
+    
+    # Limit to max 5 x-ticks (dates)
+    if len(df_filtered['date']) > 5:
+        step = max(1, len(df_filtered['date']) // 5)
+        xticks = df_filtered['date'].iloc[::step]
+        def _format_date(d):
+            import pandas as pd
+            try:
+                dt = pd.to_datetime(d, errors='coerce')
+                if pd.isnull(dt):
+                    return str(d)
+                return dt.strftime('%Y-%m-%d')
+            except Exception:
+                return str(d)
+        plt.xticks(xticks, [_format_date(d) for d in xticks], rotation=45)
+    else:
+        plt.xticks(rotation=45)
     plt.xlabel('Date')
     plt.ylabel(col.replace('_', ' ').title())
     plt.title(title)
-    
     plt.show()
 
 
@@ -116,8 +181,11 @@ def scatter_plot(df, streamlit=False):
             if x_data == y_data:
                 st.warning("X and Y must be different variables.")
             else:
+                # Filter out rows where either variable has no data
+                df_filtered = df[df[x_data].notna() & df[y_data].notna()].copy()
+                
                 fig, ax = plt.subplots()
-                ax.scatter(df[x_data].astype(float), df[y_data].astype(float))
+                ax.scatter(df_filtered[x_data].astype(float), df_filtered[y_data].astype(float))
                 ax.set_xlabel(x_data.replace("_"," ").title())
                 ax.set_ylabel(y_data.replace("_"," ").title())
                 ax.set_title(f"{x_data.replace('_',' ').title()} vs {y_data.replace('_',' ').title()}")
@@ -135,13 +203,16 @@ def scatter_plot(df, streamlit=False):
         print('X and Y must be different variables.')
         return
 
+    # Filter out rows where either variable has no data
+    df_filtered = df[df[x_data].notna() & df[y_data].notna()].copy()
+    
     # make scatterplot
     title = f'{x_data.replace("_", " ").title()} vs {y_data.replace("_", " ").title()}'
     plt.xlabel(x_data.replace('_', ' ').title())
     plt.ylabel(y_data.replace('_', ' ').title())
     plt.title(title)
 
-    plt.scatter(df[x_data].astype(float), df[y_data].astype(float))
+    plt.scatter(df_filtered[x_data].astype(float), df_filtered[y_data].astype(float))
 
     plt.show()
 
@@ -175,7 +246,7 @@ def corr_plot(df, streamlit=False):
                 ax.set_xticks([0])
                 ax.set_xticklabels([x_data.replace('_',' ').title()])
                 ax.set_yticks([0])
-                ax.set_yticklabels([x_data.replace('_',' ').title()])
+                ax.set_yticklabels([y_data.replace('_',' ').title()])
                 ax.set_title(f"{x_data.replace('_',' ').title()} vs {y_data.replace('_',' ').title()}", pad=20)
                 st.pyplot(fig)
         return
@@ -217,7 +288,7 @@ def corr_plot(df, streamlit=False):
     ax.set_xticklabels([x_data.replace('_', ' ').title()])
 
     ax.set_yticks([0])
-    ax.set_yticklabels([x_data.replace('_', ' ').title()])
+    ax.set_yticklabels([y_data.replace('_', ' ').title()])
 
     ax.set_title(title, pad=20)
 
